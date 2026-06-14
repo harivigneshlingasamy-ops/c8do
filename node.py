@@ -27,10 +27,7 @@ def load_chain():
 
             if line:
 
-                try:
-                    chain.append(json.loads(line))
-                except:
-                    pass
+                chain.append(json.loads(line))
 
     return chain
 
@@ -52,9 +49,7 @@ def create_genesis():
 
             "index": 0,
 
-            "timestamp": datetime.utcnow().strftime(
-                "%Y-%m-%dT%H:%M:%SZ"
-            ),
+            "timestamp": str(datetime.utcnow()),
 
             "document_hash": "GENESIS",
 
@@ -63,7 +58,7 @@ def create_genesis():
         }
 
         block["block_hash"] = sha256(
-            json.dumps(block, sort_keys=True)
+            json.dumps(block)
         )
 
         save_block(block)
@@ -81,9 +76,7 @@ def add_hash(doc_hash):
 
         "index": last["index"] + 1,
 
-        "timestamp": datetime.utcnow().strftime(
-            "%Y-%m-%dT%H:%M:%SZ"
-        ),
+        "timestamp": str(datetime.utcnow()),
 
         "document_hash": doc_hash,
 
@@ -92,7 +85,7 @@ def add_hash(doc_hash):
     }
 
     block["block_hash"] = sha256(
-        json.dumps(block, sort_keys=True)
+        json.dumps(block)
     )
 
     save_block(block)
@@ -111,47 +104,11 @@ class Handler(BaseHTTPRequestHandler):
             "application/json"
         )
 
-        self.send_header(
-            "Access-Control-Allow-Origin",
-            "*"
-        )
-
-        self.send_header(
-            "Access-Control-Allow-Methods",
-            "GET, POST, OPTIONS"
-        )
-
-        self.send_header(
-            "Access-Control-Allow-Headers",
-            "Content-Type"
-        )
-
         self.end_headers()
 
         self.wfile.write(
             json.dumps(data).encode()
         )
-
-    def do_OPTIONS(self):
-
-        self.send_response(200)
-
-        self.send_header(
-            "Access-Control-Allow-Origin",
-            "*"
-        )
-
-        self.send_header(
-            "Access-Control-Allow-Methods",
-            "GET, POST, OPTIONS"
-        )
-
-        self.send_header(
-            "Access-Control-Allow-Headers",
-            "Content-Type"
-        )
-
-        self.end_headers()
 
     def do_GET(self):
 
@@ -159,7 +116,7 @@ class Handler(BaseHTTPRequestHandler):
 
             self.send_json({
 
-                "name": "C8DOC Node",
+                "name": "C8DOC",
 
                 "status": "running"
 
@@ -169,7 +126,9 @@ class Handler(BaseHTTPRequestHandler):
 
         if self.path == "/chain":
 
-            self.send_json(load_chain())
+            chain = load_chain()
+
+            self.send_json(chain)
 
             return
 
@@ -189,9 +148,7 @@ class Handler(BaseHTTPRequestHandler):
 
                         "block": block["index"],
 
-                        "timestamp": block["timestamp"],
-
-                        "block_hash": block["block_hash"]
+                        "timestamp": block["timestamp"]
 
                     })
 
@@ -216,12 +173,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/upload":
 
             length = int(
-
-                self.headers.get(
-                    "Content-Length",
-                    0
-                )
-
+                self.headers["Content-Length"]
             )
 
             data = self.rfile.read(length)
@@ -241,9 +193,13 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
             with open(
+
                 MEMPOOL_FILE,
+
                 "a",
+
                 encoding="utf-8"
+
             ) as f:
 
                 f.write(doc_hash + "\n")
@@ -274,17 +230,27 @@ if __name__ == "__main__":
     if not os.path.exists(MEMPOOL_FILE):
 
         open(
+
             MEMPOOL_FILE,
-            "w"
+
+            "w",
+
+            encoding="utf-8"
+
         ).close()
 
     create_genesis()
 
     PORT = int(
+
         os.environ.get(
+
             "PORT",
-            5000
+
+            8080
+
         )
+
     )
 
     server = HTTPServer(
@@ -295,12 +261,14 @@ if __name__ == "__main__":
 
     )
 
-    print("============================")
+    print("==============================")
 
     print(
+
         f"C8DOC Node running on port {PORT}"
+
     )
 
-    print("============================")
+    print("==============================")
 
     server.serve_forever()
