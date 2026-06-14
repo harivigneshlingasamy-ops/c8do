@@ -1,0 +1,1 @@
+{"index": 0, "timestamp": "2026-06-14 04:33:42.312343", "document_hash": "GENESIS", "previous_hash": "0", "block_hash": "ad0b57744c461b1a51a30e8e4745cfc2d696841d997ea7af5cfd975246100a46"}
