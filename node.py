@@ -6,9 +6,14 @@ import urllib.request
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-BLOCKCHAIN_FILE = "blockchain.txt"
-MEMPOOL_FILE = "mempool.txt"
-PEERS_FILE = "peers.txt"
+# Railway persistent volume mounts at /data if configured.
+# Locally falls back to current directory.
+DATA_DIR = os.environ.get("DATA_DIR", ".")
+os.makedirs(DATA_DIR, exist_ok=True)
+
+BLOCKCHAIN_FILE = os.path.join(DATA_DIR, "blockchain.txt")
+MEMPOOL_FILE    = os.path.join(DATA_DIR, "mempool.txt")
+PEERS_FILE      = os.path.join(DATA_DIR, "peers.txt")
 
 # -- Validation ---------------------------------------------------------------
 
@@ -130,6 +135,44 @@ def sync_from_peers():
     if best_peer:
         save_chain(best_chain)
         print("Adopted longer chain from:", best_peer)
+
+def discover_peers():
+    """Ask every known peer who THEY know, and add new ones to our list."""
+    known = set(load_peers())
+    newly_found = set()
+
+    for peer in list(known):
+        try:
+            with urllib.request.urlopen(peer + "/peers", timeout=10) as r:
+                data = json.loads(r.read().decode())
+            their_peers = data.get("peers", [])
+            for p in their_peers:
+                if p and p not in known and p != os.environ.get("SELF_URL", "").strip():
+                    newly_found.add(p)
+        except Exception as e:
+            print("Peer discovery failed:", peer, e)
+
+    for p in newly_found:
+        save_peer(p)
+        print("Discovered new peer:", p)
+
+    if newly_found:
+        print(f"Discovered {len(newly_found)} new peer(s)")
+    else:
+        print("No new peers discovered")
+
+
+def background_discover(interval=600):
+    """Discover new peers every 10 minutes."""
+    while True:
+        threading.Event().wait(interval)
+        try:
+            discover_peers()
+            # After discovering new peers, sync chain from them too
+            sync_from_peers()
+        except Exception as e:
+            print("Background discovery error:", e)
+
 
 def broadcast_to_peers(doc_hash, origin=None, ttl=3):
     # TTL prevents infinite broadcast loops across large networks.
@@ -329,5 +372,6 @@ if __name__ == "__main__":
     # then sync and background tasks run in threads
     threading.Thread(target=sync_from_peers, daemon=True).start()
     threading.Thread(target=background_sync, args=(300,), daemon=True).start()
+    threading.Thread(target=background_discover, args=(600,), daemon=True).start()
 
     server.serve_forever()
