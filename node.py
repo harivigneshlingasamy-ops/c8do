@@ -1,3 +1,19 @@
+Boss, here is a **simple full `node.py`** that:
+
+* ✅ Creates `blockchain.txt`
+* ✅ Creates `mempool.txt`
+* ✅ Creates `peers.txt`
+* ✅ Syncs from peers on startup
+* ✅ Supports `/`
+* ✅ Supports `/chain`
+* ✅ Supports `/verify/<hash>`
+* ✅ Supports `/upload`
+* ✅ Supports `/peers`
+* ✅ Supports `/peers/register`
+
+Copy-paste completely:
+
+```python
 import os
 import json
 import hashlib
@@ -14,15 +30,14 @@ def sha256(text):
     return hashlib.sha256(text.encode()).hexdigest()
 
 
+def ensure_file(path):
+    if not os.path.exists(path):
+        open(path, "w", encoding="utf-8").close()
+
+
 def load_peers():
 
-    if not os.path.exists(PEERS_FILE):
-
-        open(
-            PEERS_FILE,
-            "w",
-            encoding="utf-8"
-        ).close()
+    ensure_file(PEERS_FILE)
 
     with open(
         PEERS_FILE,
@@ -48,9 +63,13 @@ def save_peer(url):
     if url not in peers:
 
         with open(
+
             PEERS_FILE,
+
             "a",
+
             encoding="utf-8"
+
         ) as f:
 
             f.write(url + "\n")
@@ -58,19 +77,18 @@ def save_peer(url):
 
 def load_chain():
 
+    ensure_file(BLOCKCHAIN_FILE)
+
     chain = []
 
-    if not os.path.exists(BLOCKCHAIN_FILE):
-
-        open(
-            BLOCKCHAIN_FILE,
-            "w"
-        ).close()
-
     with open(
+
         BLOCKCHAIN_FILE,
+
         "r",
+
         encoding="utf-8"
+
     ) as f:
 
         for line in f:
@@ -158,7 +176,13 @@ def create_genesis():
 
         block["block_hash"] = sha256(
 
-            json.dumps(block)
+            json.dumps(
+
+                block,
+
+                sort_keys=True
+
+            )
 
         )
 
@@ -199,7 +223,13 @@ def add_hash(doc_hash):
 
     block["block_hash"] = sha256(
 
-        json.dumps(block)
+        json.dumps(
+
+            block,
+
+            sort_keys=True
+
+        )
 
     )
 
@@ -212,15 +242,23 @@ def sync_from_peers():
 
     peers = load_peers()
 
-    local_chain = load_chain()
-
     for peer in peers:
 
         try:
 
+            print(
+
+                "Trying:",
+
+                peer
+
+            )
+
             with urllib.request.urlopen(
 
-                peer + "/chain"
+                peer + "/chain",
+
+                timeout=10
 
             ) as response:
 
@@ -232,7 +270,7 @@ def sync_from_peers():
 
                 )
 
-            if len(peer_chain) > len(local_chain):
+            if len(peer_chain) > 1:
 
                 save_chain(
 
@@ -242,7 +280,9 @@ def sync_from_peers():
 
                 print(
 
-                    f"Synced from {peer}"
+                    "Synced from",
+
+                    peer
 
                 )
 
@@ -252,7 +292,9 @@ def sync_from_peers():
 
             print(
 
-                f"Sync failed: {peer}"
+                "Sync failed:",
+
+                peer
 
             )
 
@@ -353,9 +395,7 @@ class Handler(
 
             )
 
-            chain = load_chain()
-
-            for block in chain:
+            for block in load_chain():
 
                 if (
 
@@ -386,6 +426,7 @@ class Handler(
                     })
 
                     return
+
 
             self.send_json({
 
@@ -558,34 +599,23 @@ class Handler(
         },404)
 
 
-
 if __name__ == "__main__":
 
-    for f in [
+    ensure_file(
 
-        MEMPOOL_FILE,
+        MEMPOOL_FILE
+
+    )
+
+    ensure_file(
 
         PEERS_FILE
 
-    ]:
-
-        if not os.path.exists(f):
-
-            open(
-
-                f,
-
-                "w",
-
-                encoding="utf-8"
-
-            ).close()
-
+    )
 
     create_genesis()
 
     sync_from_peers()
-
 
     PORT = int(
 
@@ -598,7 +628,6 @@ if __name__ == "__main__":
         )
 
     )
-
 
     server = HTTPServer(
 
@@ -614,7 +643,6 @@ if __name__ == "__main__":
 
     )
 
-
     print("=" * 30)
 
     print(
@@ -625,5 +653,5 @@ if __name__ == "__main__":
 
     print("=" * 30)
 
-
     server.serve_forever()
+```
