@@ -100,8 +100,16 @@ def add_hash(doc_hash):
     save_block(block)
     return block, None
 
+GENESIS_BLOCK_HASH = "ad0b57744c461b1a51a30e8e4745cfc2d696841d997ea7af5cfd975246100a46"
+
 def is_valid_chain(chain):
     """Verify chain integrity - each block must link to the previous."""
+    if not chain:
+        return False
+    # Genesis must match our known anchor - rejects all fake chains
+    if chain[0].get("block_hash") != GENESIS_BLOCK_HASH:
+        print("Rejected chain: Genesis block hash does not match.")
+        return False
     for i in range(1, len(chain)):
         b = chain[i]
         prev = chain[i - 1]
@@ -176,7 +184,7 @@ def background_discover(interval=600):
 
 def broadcast_to_peers(doc_hash, origin=None, ttl=3):
     # TTL prevents infinite broadcast loops across large networks.
-    # Each hop decrements TTL — stops at 0 even if loops exist.
+    # Each hop decrements TTL - stops at 0 even if loops exist.
     if ttl <= 0:
         print("Broadcast TTL exhausted, stopping.")
         return
