@@ -226,63 +226,69 @@ def sync_from_peers():
 
     peers = load_peers()
 
+    print("Peers:", peers)
+
     for peer in peers:
 
         try:
 
-            print(
-
-                "Trying:",
-
-                peer
-
-            )
+            print("Trying:", peer)
 
             with urllib.request.urlopen(
-
                 peer + "/chain",
-
                 timeout=10
-
             ) as response:
 
-                peer_chain = json.loads(
+                text = response.read().decode()
 
-                    response.read()
+                print("RAW RESPONSE:")
 
-                    .decode()
+                print(text)
 
-                )
+                peer_chain = json.loads(text)
 
-            if len(peer_chain) > 1:
+            print(
+                "Peer blocks:",
+                len(peer_chain)
+            )
 
-                save_chain(
+            local_chain = load_chain()
 
-                    peer_chain
+            print(
+                "Local blocks:",
+                len(local_chain)
+            )
 
-                )
+            if len(peer_chain) > len(local_chain):
+
+                save_chain(peer_chain)
 
                 print(
-
                     "Synced from",
-
                     peer
-
                 )
 
                 return
 
-        except Exception as e:
+            else:
 
-            print(
+                print(
+                    "Local chain already up to date"
+                )
 
-                "Sync failed:",
+        except Exception:
 
-                peer
+            import traceback
 
-            )
+            print("====================")
 
-            print(e)
+            print("SYNC FAILED")
+
+            print("Peer:", peer)
+
+            traceback.print_exc()
+
+            print("====================")
 
 
 class Handler(
