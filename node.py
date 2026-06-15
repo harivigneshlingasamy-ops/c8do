@@ -222,19 +222,41 @@ def add_hash(doc_hash):
     return block
 
 
-def broadcast_to_peers(doc_hash):
+def broadcast_to_peers(doc_hash, origin=None):
 
     peers = load_peers()
 
+    self_url = os.environ.get(
+
+        "SELF_URL",
+
+        ""
+
+    ).strip()
+
     for peer in peers:
+
+        if peer == origin:
+
+            print(
+
+                "Skipping origin peer:",
+
+                peer
+
+            )
+
+            continue
 
         try:
 
-            payload = json.dumps(
+            payload = json.dumps({
 
-                {"hash": doc_hash}
+                "hash": doc_hash,
 
-            ).encode()
+                "from": self_url
+
+            }).encode()
 
             req = urllib.request.Request(
 
@@ -609,6 +631,15 @@ class Handler(
 
                 return
 
+            # "from" tells us who sent this broadcast
+            # so we don't echo it back to them
+            origin = body.get(
+
+                "from",
+
+                None
+
+            )
 
             with open(
 
@@ -628,7 +659,6 @@ class Handler(
 
                 )
 
-
             block = add_hash(
 
                 doc_hash
@@ -637,7 +667,9 @@ class Handler(
 
             broadcast_to_peers(
 
-                doc_hash
+                doc_hash,
+
+                origin=origin
 
             )
 
@@ -697,7 +729,6 @@ class Handler(
                 },400)
 
                 return
-
 
             save_peer(url)
 
