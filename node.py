@@ -267,7 +267,14 @@ class Handler(BaseHTTPRequestHandler):
 
             save_peer(url)
 
+            # SELF_URL env var takes priority (set this in Railway variables)
+            # Falls back to Host header so Railway can identify itself automatically
             self_url = os.environ.get("SELF_URL", "").strip()
+            if not self_url:
+                host = self.headers.get("X-Forwarded-Host") or self.headers.get("Host", "")
+                if host and "localhost" not in host and "127.0.0.1" not in host:
+                    self_url = "https://" + host.split(",")[0].strip()
+
             if self_url and self_url != url:
                 try:
                     payload = json.dumps({"url": self_url}).encode()
@@ -278,7 +285,7 @@ class Handler(BaseHTTPRequestHandler):
                         method="POST"
                     )
                     urllib.request.urlopen(req, timeout=10)
-                    print("Mutual register with:", url)
+                    print("Mutual register with:", url, "as", self_url)
                 except Exception as e:
                     print("Mutual register failed:", url, e)
 
@@ -299,10 +306,6 @@ if __name__ == "__main__":
     ensure_file(MEMPOOL_FILE)
     ensure_file(PEERS_FILE)
     create_genesis()
-    sync_from_peers()
-
-    # Background sync every 5 minutes
-    threading.Thread(target=background_sync, args=(300,), daemon=True).start()
 
     PORT = int(os.environ.get("PORT", 8080))
     server = HTTPServer(("0.0.0.0", PORT), Handler)
@@ -310,5 +313,10 @@ if __name__ == "__main__":
     print("=" * 40)
     print(f"C8DOC Node v2.0 running on {PORT}")
     print("=" * 40)
+
+    # Start server first so Railway marks us healthy immediately,
+    # then sync and background tasks run in threads
+    threading.Thread(target=sync_from_peers, daemon=True).start()
+    threading.Thread(target=background_sync, args=(300,), daemon=True).start()
 
     server.serve_forever()
