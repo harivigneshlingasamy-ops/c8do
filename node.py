@@ -63,6 +63,16 @@ def load_chain():
 
     ensure_file(BLOCKCHAIN_FILE)
 
+    print(
+        "Reading blockchain from:"
+    )
+
+    print(
+        os.path.abspath(
+            BLOCKCHAIN_FILE
+        )
+    )
+
     chain = []
 
     with open(
@@ -89,8 +99,17 @@ def load_chain():
 
     return chain
 
-
 def save_chain(chain):
+
+    print(
+        "Saving blockchain to:"
+    )
+
+    print(
+        os.path.abspath(
+            BLOCKCHAIN_FILE
+        )
+    )
 
     with open(
 
@@ -112,6 +131,7 @@ def save_chain(chain):
 
             )
 
+    print("Blockchain saved")
 
 def save_block(block):
 
