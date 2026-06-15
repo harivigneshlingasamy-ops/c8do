@@ -131,14 +131,24 @@ def sync_from_peers():
         save_chain(best_chain)
         print("Adopted longer chain from:", best_peer)
 
-def broadcast_to_peers(doc_hash, origin=None):
+def broadcast_to_peers(doc_hash, origin=None, ttl=3):
+    # TTL prevents infinite broadcast loops across large networks.
+    # Each hop decrements TTL — stops at 0 even if loops exist.
+    if ttl <= 0:
+        print("Broadcast TTL exhausted, stopping.")
+        return
+
     peers = load_peers()
     self_url = os.environ.get("SELF_URL", "").strip()
     for peer in peers:
         if peer == origin:
             continue
         try:
-            payload = json.dumps({"hash": doc_hash, "from": self_url}).encode()
+            payload = json.dumps({
+                "hash": doc_hash,
+                "from": self_url,
+                "ttl": ttl - 1
+            }).encode()
             req = urllib.request.Request(
                 peer + "/upload",
                 data=payload,
@@ -146,7 +156,7 @@ def broadcast_to_peers(doc_hash, origin=None):
                 method="POST"
             )
             urllib.request.urlopen(req, timeout=10)
-            print("Broadcasted to:", peer)
+            print("Broadcasted to:", peer, "ttl remaining:", ttl - 1)
         except Exception as e:
             print("Broadcast failed:", peer, e)
 
@@ -240,6 +250,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
             origin = body.get("from", None)
+            ttl = int(body.get("ttl", 3))
 
             with open(MEMPOOL_FILE, "a", encoding="utf-8") as f:
                 f.write(doc_hash + "\n")
@@ -250,7 +261,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json({"error": "hash already exists on chain"}, 409)
                 return
 
-            broadcast_to_peers(doc_hash, origin=origin)
+            broadcast_to_peers(doc_hash, origin=origin, ttl=ttl)
 
             self.send_json({
                 "success": True,
