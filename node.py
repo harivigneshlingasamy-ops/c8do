@@ -222,6 +222,67 @@ def add_hash(doc_hash):
     return block
 
 
+def broadcast_to_peers(doc_hash):
+
+    peers = load_peers()
+
+    for peer in peers:
+
+        try:
+
+            payload = json.dumps(
+
+                {"hash": doc_hash}
+
+            ).encode()
+
+            req = urllib.request.Request(
+
+                peer + "/upload",
+
+                data=payload,
+
+                headers={
+
+                    "Content-Type":
+
+                    "application/json"
+
+                },
+
+                method="POST"
+
+            )
+
+            urllib.request.urlopen(
+
+                req,
+
+                timeout=10
+
+            )
+
+            print(
+
+                "Broadcasted to peer:",
+
+                peer
+
+            )
+
+        except Exception as e:
+
+            print(
+
+                "Broadcast failed:",
+
+                peer
+
+            )
+
+            print(e)
+
+
 def fetch_block_from_peers(doc_hash):
 
     peers = load_peers()
@@ -574,6 +635,11 @@ class Handler(
 
             )
 
+            broadcast_to_peers(
+
+                doc_hash
+
+            )
 
             self.send_json({
 
@@ -634,6 +700,70 @@ class Handler(
 
 
             save_peer(url)
+
+            self_url = os.environ.get(
+
+                "SELF_URL",
+
+                ""
+
+            ).strip()
+
+            if self_url and self_url != url:
+
+                try:
+
+                    payload = json.dumps(
+
+                        {"url": self_url}
+
+                    ).encode()
+
+                    req = urllib.request.Request(
+
+                        url + "/peers/register",
+
+                        data=payload,
+
+                        headers={
+
+                            "Content-Type":
+
+                            "application/json"
+
+                        },
+
+                        method="POST"
+
+                    )
+
+                    urllib.request.urlopen(
+
+                        req,
+
+                        timeout=10
+
+                    )
+
+                    print(
+
+                        "Registered self with peer:",
+
+                        url
+
+                    )
+
+                except Exception as e:
+
+                    print(
+
+                        "Mutual register failed:",
+
+                        url
+
+                    )
+
+                    print(e)
 
             self.send_json({
 
