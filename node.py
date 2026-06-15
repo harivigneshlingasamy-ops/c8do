@@ -1,19 +1,3 @@
-Boss, here is a **simple full `node.py`** that:
-
-* ✅ Creates `blockchain.txt`
-* ✅ Creates `mempool.txt`
-* ✅ Creates `peers.txt`
-* ✅ Syncs from peers on startup
-* ✅ Supports `/`
-* ✅ Supports `/chain`
-* ✅ Supports `/verify/<hash>`
-* ✅ Supports `/upload`
-* ✅ Supports `/peers`
-* ✅ Supports `/peers/register`
-
-Copy-paste completely:
-
-```python
 import os
 import json
 import hashlib
@@ -654,4 +638,3 @@ if __name__ == "__main__":
     print("=" * 30)
 
     server.serve_forever()
-```
