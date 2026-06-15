@@ -1,6 +1,7 @@
 import os
 import json
 import hashlib
+import urllib.request
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -79,23 +80,55 @@ def load_chain():
             if line:
 
                 chain.append(
+
                     json.loads(line)
+
                 )
 
     return chain
 
 
+def save_chain(chain):
+
+    with open(
+
+        BLOCKCHAIN_FILE,
+
+        "w",
+
+        encoding="utf-8"
+
+    ) as f:
+
+        for block in chain:
+
+            f.write(
+
+                json.dumps(block)
+
+                + "\n"
+
+            )
+
+
 def save_block(block):
 
     with open(
+
         BLOCKCHAIN_FILE,
+
         "a",
+
         encoding="utf-8"
+
     ) as f:
 
         f.write(
+
             json.dumps(block)
+
             + "\n"
+
         )
 
 
@@ -110,12 +143,15 @@ def create_genesis():
             "index": 0,
 
             "timestamp":
+
             str(datetime.utcnow()),
 
             "document_hash":
+
             "GENESIS",
 
             "previous_hash":
+
             "0"
 
         }
@@ -128,7 +164,11 @@ def create_genesis():
 
         save_block(block)
 
-        print("Genesis block created")
+        print(
+
+            "Genesis block created"
+
+        )
 
 
 def add_hash(doc_hash):
@@ -140,15 +180,19 @@ def add_hash(doc_hash):
     block = {
 
         "index":
+
         last["index"] + 1,
 
         "timestamp":
+
         str(datetime.utcnow()),
 
         "document_hash":
+
         doc_hash,
 
         "previous_hash":
+
         last["block_hash"]
 
     }
@@ -164,12 +208,71 @@ def add_hash(doc_hash):
     return block
 
 
-class Handler(BaseHTTPRequestHandler):
+def sync_from_peers():
+
+    peers = load_peers()
+
+    local_chain = load_chain()
+
+    for peer in peers:
+
+        try:
+
+            with urllib.request.urlopen(
+
+                peer + "/chain"
+
+            ) as response:
+
+                peer_chain = json.loads(
+
+                    response.read()
+
+                    .decode()
+
+                )
+
+            if len(peer_chain) > len(local_chain):
+
+                save_chain(
+
+                    peer_chain
+
+                )
+
+                print(
+
+                    f"Synced from {peer}"
+
+                )
+
+                return
+
+        except Exception as e:
+
+            print(
+
+                f"Sync failed: {peer}"
+
+            )
+
+            print(e)
+
+
+class Handler(
+
+    BaseHTTPRequestHandler
+
+):
 
     def send_json(
+
         self,
+
         data,
+
         code=200
+
     ):
 
         self.send_response(code)
@@ -186,9 +289,12 @@ class Handler(BaseHTTPRequestHandler):
 
         self.wfile.write(
 
-            json.dumps(data).encode()
+            json.dumps(data)
+
+            .encode()
 
         )
+
 
     def do_GET(self):
 
@@ -196,9 +302,13 @@ class Handler(BaseHTTPRequestHandler):
 
             self.send_json({
 
-                "name": "C8DOC",
+                "name":
 
-                "status": "running"
+                "C8DOC",
+
+                "status":
+
+                "running"
 
             })
 
@@ -229,7 +339,11 @@ class Handler(BaseHTTPRequestHandler):
             return
 
 
-        if self.path.startswith("/verify/"):
+        if self.path.startswith(
+
+            "/verify/"
+
+        ):
 
             doc_hash = (
 
@@ -305,13 +419,15 @@ class Handler(BaseHTTPRequestHandler):
 
             )
 
-            data = self.rfile.read(
+            body = json.loads(
 
-                length
+                self.rfile.read(
+
+                    length
+
+                )
 
             )
-
-            body = json.loads(data)
 
             doc_hash = body.get(
 
@@ -331,6 +447,7 @@ class Handler(BaseHTTPRequestHandler):
 
                 return
 
+
             with open(
 
                 MEMPOOL_FILE,
@@ -349,11 +466,13 @@ class Handler(BaseHTTPRequestHandler):
 
                 )
 
+
             block = add_hash(
 
                 doc_hash
 
             )
+
 
             self.send_json({
 
@@ -412,6 +531,7 @@ class Handler(BaseHTTPRequestHandler):
 
                 return
 
+
             save_peer(url)
 
             self.send_json({
@@ -436,6 +556,7 @@ class Handler(BaseHTTPRequestHandler):
             "not found"
 
         },404)
+
 
 
 if __name__ == "__main__":
@@ -463,6 +584,9 @@ if __name__ == "__main__":
 
     create_genesis()
 
+    sync_from_peers()
+
+
     PORT = int(
 
         os.environ.get(
@@ -474,6 +598,7 @@ if __name__ == "__main__":
         )
 
     )
+
 
     server = HTTPServer(
 
@@ -489,7 +614,8 @@ if __name__ == "__main__":
 
     )
 
-    print("="*30)
+
+    print("=" * 30)
 
     print(
 
@@ -497,6 +623,7 @@ if __name__ == "__main__":
 
     )
 
-    print("="*30)
+    print("=" * 30)
+
 
     server.serve_forever()
