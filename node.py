@@ -6,6 +6,7 @@ from datetime import datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 BLOCKCHAIN_FILE = "blockchain.txt"
+MEMPOOL_FILE = "mempool.txt"
 PEERS_FILE = "peers.txt"
 
 
@@ -13,15 +14,14 @@ def sha256(text):
     return hashlib.sha256(text.encode()).hexdigest()
 
 
+def ensure_file(path):
+    if not os.path.exists(path):
+        open(path, "w", encoding="utf-8").close()
+
+
 def load_peers():
 
-    if not os.path.exists(PEERS_FILE):
-
-        open(
-            PEERS_FILE,
-            "w",
-            encoding="utf-8"
-        ).close()
+    ensure_file(PEERS_FILE)
 
     with open(
         PEERS_FILE,
@@ -40,22 +40,39 @@ def load_peers():
         ]
 
 
+def save_peer(url):
+
+    peers = load_peers()
+
+    if url not in peers:
+
+        with open(
+
+            PEERS_FILE,
+
+            "a",
+
+            encoding="utf-8"
+
+        ) as f:
+
+            f.write(url + "\n")
+
+
 def load_chain():
+
+    ensure_file(BLOCKCHAIN_FILE)
 
     chain = []
 
-    if not os.path.exists(BLOCKCHAIN_FILE):
-
-        open(
-            BLOCKCHAIN_FILE,
-            "w",
-            encoding="utf-8"
-        ).close()
-
     with open(
+
         BLOCKCHAIN_FILE,
+
         "r",
+
         encoding="utf-8"
+
     ) as f:
 
         for line in f:
@@ -65,7 +82,9 @@ def load_chain():
             if line:
 
                 chain.append(
+
                     json.loads(line)
+
                 )
 
     return chain
@@ -74,17 +93,45 @@ def load_chain():
 def save_chain(chain):
 
     with open(
+
         BLOCKCHAIN_FILE,
+
         "w",
+
         encoding="utf-8"
+
     ) as f:
 
         for block in chain:
 
             f.write(
+
                 json.dumps(block)
+
                 + "\n"
+
             )
+
+
+def save_block(block):
+
+    with open(
+
+        BLOCKCHAIN_FILE,
+
+        "a",
+
+        encoding="utf-8"
+
+    ) as f:
+
+        f.write(
+
+            json.dumps(block)
+
+            + "\n"
+
+        )
 
 
 def create_genesis():
@@ -114,34 +161,136 @@ def create_genesis():
         block["block_hash"] = sha256(
 
             json.dumps(
+
                 block,
+
                 sort_keys=True
+
             )
 
         )
 
-        save_chain([block])
+        save_block(block)
 
         print(
-            "Genesis created"
+
+            "Genesis block created"
+
         )
 
 
-def sync_from_peers():
+def add_hash(doc_hash):
+
+    chain = load_chain()
+
+    last = chain[-1]
+
+    block = {
+
+        "index":
+
+        last["index"] + 1,
+
+        "timestamp":
+
+        str(datetime.utcnow()),
+
+        "document_hash":
+
+        doc_hash,
+
+        "previous_hash":
+
+        last["block_hash"]
+
+    }
+
+    block["block_hash"] = sha256(
+
+        json.dumps(
+
+            block,
+
+            sort_keys=True
+
+        )
+
+    )
+
+    save_block(block)
+
+    return block
+
+
+def fetch_block_from_peers(doc_hash):
 
     peers = load_peers()
-
-    print("Peers:", peers)
-
-    local_chain = load_chain()
 
     for peer in peers:
 
         try:
 
             print(
-                "Trying:",
+
+                "Fetching block from peer:",
+
                 peer
+
+            )
+
+            with urllib.request.urlopen(
+
+                peer + "/verify/" + doc_hash,
+
+                timeout=10
+
+            ) as response:
+
+                result = json.loads(
+
+                    response.read()
+
+                    .decode()
+
+                )
+
+            if result.get(
+
+                "verified"
+
+            ):
+
+                return result
+
+        except Exception as e:
+
+            print(
+
+                "Peer block fetch failed:",
+
+                peer
+
+            )
+
+            print(e)
+
+    return None
+
+
+def sync_from_peers():
+
+    peers = load_peers()
+
+    for peer in peers:
+
+        try:
+
+            print(
+
+                "Trying:",
+
+                peer
+
             )
 
             with urllib.request.urlopen(
@@ -160,15 +309,7 @@ def sync_from_peers():
 
                 )
 
-            print(
-
-                "Peer blocks:",
-
-                len(peer_chain)
-
-            )
-
-            if len(peer_chain) > len(local_chain):
+            if len(peer_chain) > 1:
 
                 save_chain(
 
@@ -186,19 +327,13 @@ def sync_from_peers():
 
                 return
 
-            else:
-
-                print(
-
-                    "Already latest"
-
-                )
-
         except Exception as e:
 
             print(
 
-                "Sync failed"
+                "Sync failed:",
+
+                peer
 
             )
 
@@ -285,6 +420,236 @@ class Handler(
             return
 
 
+        if self.path.startswith(
+
+            "/verify/"
+
+        ):
+
+            doc_hash = (
+
+                self.path
+
+                .split("/")[-1]
+
+            )
+
+            for block in load_chain():
+
+                if (
+
+                    block
+
+                    ["document_hash"]
+
+                    ==
+
+                    doc_hash
+
+                ):
+
+                    self.send_json({
+
+                        "verified":
+
+                        True,
+
+                        "block":
+
+                        block["index"],
+
+                        "timestamp":
+
+                        block["timestamp"],
+
+                        "source":
+
+                        "local"
+
+                    })
+
+                    return
+
+            peer_result = fetch_block_from_peers(
+
+                doc_hash
+
+            )
+
+            if peer_result:
+
+                peer_result["source"] = "peer"
+
+                self.send_json(
+
+                    peer_result
+
+                )
+
+                return
+
+            self.send_json({
+
+                "verified":
+
+                False
+
+            })
+
+            return
+
+
+        self.send_json({
+
+            "error":
+
+            "not found"
+
+        },404)
+
+
+    def do_POST(self):
+
+        if self.path == "/upload":
+
+            length = int(
+
+                self.headers
+
+                ["Content-Length"]
+
+            )
+
+            body = json.loads(
+
+                self.rfile.read(
+
+                    length
+
+                )
+
+            )
+
+            doc_hash = body.get(
+
+                "hash"
+
+            )
+
+            if not doc_hash:
+
+                self.send_json({
+
+                    "error":
+
+                    "hash missing"
+
+                },400)
+
+                return
+
+
+            with open(
+
+                MEMPOOL_FILE,
+
+                "a",
+
+                encoding="utf-8"
+
+            ) as f:
+
+                f.write(
+
+                    doc_hash
+
+                    + "\n"
+
+                )
+
+
+            block = add_hash(
+
+                doc_hash
+
+            )
+
+
+            self.send_json({
+
+                "success":
+
+                True,
+
+                "block":
+
+                block["index"],
+
+                "block_hash":
+
+                block["block_hash"]
+
+            })
+
+            return
+
+
+        if self.path == "/peers/register":
+
+            length = int(
+
+                self.headers
+
+                ["Content-Length"]
+
+            )
+
+            body = json.loads(
+
+                self.rfile.read(
+
+                    length
+
+                )
+
+            )
+
+            url = body.get(
+
+                "url"
+
+            )
+
+            if not url:
+
+                self.send_json({
+
+                    "error":
+
+                    "url missing"
+
+                },400)
+
+                return
+
+
+            save_peer(url)
+
+            self.send_json({
+
+                "success":
+
+                True,
+
+                "peer":
+
+                url
+
+            })
+
+            return
+
+
         self.send_json({
 
             "error":
@@ -295,6 +660,18 @@ class Handler(
 
 
 if __name__ == "__main__":
+
+    ensure_file(
+
+        MEMPOOL_FILE
+
+    )
+
+    ensure_file(
+
+        PEERS_FILE
+
+    )
 
     create_genesis()
 
