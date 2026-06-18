@@ -32,7 +32,7 @@ def is_valid_hash(h):
 # -- Core helpers -------------------------------------------------------------
 
 def sha256(text):
-    return hashlib.sha256(text.encode()).hexdigest()
+    return hashlib.sha256(text.encode()).hexdigest(
 
 def ensure_file(path):
     if not os.path.exists(path):
